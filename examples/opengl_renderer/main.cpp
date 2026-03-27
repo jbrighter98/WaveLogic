@@ -89,7 +89,7 @@ int main() {
     // define vertices, shaders
     std::vector<float> planeVertices;
     std::vector<unsigned int> planeIndices;
-    generatePlane(100.0f, 1000, planeVertices, planeIndices); // 100x100 size, 1000x1000 resolution
+    generatePlane(20.0f, 200, planeVertices, planeIndices); // 20x20 size, 200x200 resolution
 
     unsigned int VAO, VBO, EBO;
     glGenVertexArrays(1, &VAO);
@@ -117,40 +117,69 @@ int main() {
 
 
     // --- Initialization (Outside the loop) ---
-    std::vector<WaveParameters> activeWaves;
-    activeWaves.push_back({0.5f, 0.8f, 1.5f, 0.4f, 1.0f, 0.2f, 0.0f}); // Main swell
-    activeWaves.push_back({0.2f, 1.5f, 2.5f, 0.2f, 0.3f, 0.8f, 0.0f}); // Smaller, faster chop
-    activeWaves.push_back({0.1f, 3.0f, 4.0f, 0.1f, -0.5f, 0.5f, 0.0f}); // High-frequency ripples
+    std::vector<WaveLogic::WaveParameters> activeWaves = WaveLogic::Simulator::GenerateSeaState(5.0f, 45.0f, 5.0f, 16, 123);
 
     float lastFrame = 0.0f;
 
 
     // --- Render Loop ---
     while (!glfwWindowShouldClose(window)) {
-        // Input
+        
+        // INPUTS
+
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
             glfwSetWindowShouldClose(window, true);
 
 
-        // Calculate DeltaTime
+        // DELTA TIME CALCULATION
+
         float currentFrame = glfwGetTime();
         float deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        // Render
+
+        // RENDER
+
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Start using shader
-        // *** Polygon mode to see the wireframe of the plane ***
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // See the "mesh" structure
+
+        // SHADER
+
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Mesh wireframe mode for debugging
+        //glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // Default fill mode
         mainShader.use();
+
+
+        // LIGHTING
+
+        mainShader.setVec3("lightPos", glm::vec3(0.0f, 10.0f, 0.0f)); // Light coming from above
+
+
+        // CAMERA
+
+        // Look from far away and high up to see the "Pattern"
+        glm::vec3 cameraPos = glm::vec3(0.0f, 5.0f, 10.0f); 
+        glm::mat4 view = glm::lookAt(cameraPos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+        mainShader.setVec3("viewPos", cameraPos);
+        mainShader.setMat4("view", view);
+
+
+        // WAVES
+
+        glm::vec3 waterColor = glm::vec3(0.1, 0.4, 0.6);
+        mainShader.setVec3("waterColor", waterColor);
 
         mainShader.setInt("numWaves", (int)activeWaves.size());
 
-        for (int i = 0; i < activeWaves.size(); ++i) {
+        if (activeWaves.size() > 16) {
+            std::cout << "WARNING: Too many waves for shader capacity! Maximum is 16." << std::endl;
+        }
 
-            activeWaves[i].phase += activeWaves[i].speed * deltaTime;
+        WaveLogic::Simulator::UpdateWaves(activeWaves, deltaTime);
+
+        for (int i = 0; i < activeWaves.size(); ++i) {
 
             std::string wavePrefix = "waves[" + std::to_string(i) + "]";
             mainShader.setFloat(wavePrefix + ".amplitude", activeWaves[i].amplitude);
@@ -162,33 +191,19 @@ int main() {
         }
 
 
-        glm::vec3 currentBlue = glm::vec3(0.0f, 0.5f, 1.0f);
-        // Send it to the "waterColor" uniform in the shader
-        unsigned int colorLoc = glGetUniformLocation(mainShader.ID, "waterColor");
-        glUniform3fv(colorLoc, 1, glm::value_ptr(currentBlue));
+        // MODEL & PROJECTION MATRICES
 
-        // Create the Model Matrix (Rotate over time)
         glm::mat4 model = glm::mat4(1.0f);
-        //model = glm::rotate(model, (float)glfwGetTime(), glm::vec3(0.5f, 1.0f, 0.0f));
-
-        // Create the View Matrix (The Camera)
-        glm::mat4 view = glm::mat4(1.0f);
-        view = glm::translate(view, glm::vec3(0.0f, -0.5f, -7.0f)); 
-        view = glm::rotate(view, glm::radians(10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-
-        // Create the Projection Matrix (Perspective)
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)currentWidth / (float)currentHeight, 0.1f, 100.0f);
 
-        // Send these matrices to the Shaders
-        mainShader.setMat4("model", model);
-        mainShader.setMat4("view", view);
+        mainShader.setMat4("model", model);        
         mainShader.setMat4("projection", projection);
 
-        // Finally, Draw the Cube
+
+        // DRAW
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, planeIndices.size(), GL_UNSIGNED_INT, 0);
 
-        // Swap buffers and poll events
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
