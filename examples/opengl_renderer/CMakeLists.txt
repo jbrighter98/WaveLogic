@@ -1,7 +1,6 @@
 project(opengl_renderer VERSION 1.0.0)
 
 # Include directories
-# This tells the compiler where to look for your .h/.hpp files
 include_directories(include)
 # If using GLM as header-only, add its path here too
 # include_directories(deps/glm) 
@@ -26,14 +25,17 @@ target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_link_libraries(${PROJECT_NAME} WaveLogic glfw ${OPENGL_LIBRARIES})
 
 set(CORE_SHADER_DIR "${CMAKE_SOURCE_DIR}/core/shaders")
+set(EXAMPLE_SHADER_DIR "${CMAKE_SOURCE_DIR}/examples/opengl_renderer/shaders")
 
-# Define which shaders this example needs
+# Define example shaders
 set(EXAMPLE_SHADERS 
     "${CORE_SHADER_DIR}/shader.vs"
     "${CORE_SHADER_DIR}/shader.fs"
+    "${EXAMPLE_SHADER_DIR}/sphere.vs"
+    "${EXAMPLE_SHADER_DIR}/sphere.fs"
 )
 
-# This command copies the shaders to the build directory every time you build
+# Copy shaders to the output directory after building
 foreach(SHADER_FILE ${EXAMPLE_SHADERS})
     add_custom_command(
         TARGET opengl_renderer POST_BUILD

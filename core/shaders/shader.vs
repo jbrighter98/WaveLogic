@@ -10,11 +10,12 @@ struct Wave {
     vec2 direction;
 };
 
-#define MAX_WAVES 16
+#define MAX_WAVES 64
 uniform Wave waves[MAX_WAVES];
 uniform int numWaves;
 
 uniform mat4 model, view, projection;
+uniform mat3 normalMatrix;
 
 // Data to pass to the fragment shader
 out vec3 Normal;
@@ -27,6 +28,7 @@ void main() {
     // accumulate normal components
     float tx = 0.0;
     float tz = 0.0;
+    float txy = 0.0;
     float ty = 1.0;
 
     for(int i = 0; i < numWaves; i++) {
@@ -37,24 +39,37 @@ void main() {
         float cosA = cos(angle);
         float sinA = sin(angle);
         float wa = waves[i].frequency * waves[i].amplitude;
+        float Qwa = waves[i].steepness * wa;
         
         // Horizontal displacement (creates the "choppy" peaks)
         displacedPos.x += waves[i].steepness * waves[i].amplitude * waves[i].direction.x * cosA;
-        displacedPos.z += waves[i].steepness * waves[i].amplitude * waves[i].direction.y * sinA;
+        displacedPos.z += waves[i].steepness * waves[i].amplitude * waves[i].direction.y * cosA;
         
         // Vertical displacement
         displacedPos.y += waves[i].amplitude * sinA;
 
         // Normal Derivatives (Match core WaveLogic)
-        tx -= waves[i].direction.x * wa * cosA;
-        tz -= waves[i].direction.y * wa * cosA;
-        ty -= waves[i].steepness * wa * sinA;
+        // These come from the partial derivatives of the displaced position:
+
+        //tx -= waves[i].direction.x * wa * cosA;
+        //tz -= waves[i].direction.y * wa * cosA;
+        //ty -= waves[i].steepness * wa * sinA;
+
+        tx  += waves[i].direction.x * waves[i].direction.x * Qwa * sinA;
+        tz  += waves[i].direction.y * waves[i].direction.y * Qwa * sinA;
+        txy += waves[i].direction.x * waves[i].direction.y * Qwa * sinA;
+        ty  -= Qwa * sinA;
 
     }
 
     // normalize and transform to world space
-    ty = max(ty, 0.1);
-    Normal = normalize(mat3(transpose(inverse(model))) * vec3(tx, ty, tz));
+    //ty = max(ty, 0.1);
+    //Normal = normalize(mat3(transpose(inverse(model))) * vec3(tx, ty, tz));
+
+
+    vec3 normal = normalize(vec3(-(tx + txy), ty, -(tz + txy)));
+    Normal = normalize(normalMatrix * normal);
+
 
     // calculate world position for lighting calculations in the fs
     FragPos = vec3(model * vec4(displacedPos, 1.0));

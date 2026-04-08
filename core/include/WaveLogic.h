@@ -3,6 +3,7 @@
 
 #pragma once
 #include <vector>
+#include <cmath>
 
 namespace WaveLogic {
 
@@ -10,14 +11,31 @@ namespace WaveLogic {
         float amplitude;
         float frequency;
         float speed;
-        float steepness; // For Gerstner "peaks"
+        float steepness;
         float directionX, directionZ;
         float phase; // Updated over time
     };
 
-    // Simple POD (Plain Old Data) struct for 3D coordinates
+    struct SeaParameters {
+        float dominantDirection;
+        float directionalSpread;
+        float planeSize;          
+        float amplitudeScale;     // master amplitude, in plane units. Start with 0.05f (= 5% of plane)
+        float steepness;          // global steepness target, 0.0–1.0
+        float shortestWaveFrac;   // shortest wave as fraction of planeSize. e.g. 0.05 = 1 unit
+        float longestWaveFrac;    // longest wave as fraction of planeSize.  e.g. 0.6  = 12 units
+        int   waveCount;
+        unsigned int seed;           
+    };
+
+    // Simple struct for 3D coordinates
     struct WaveVector3 {
         float x, y, z;
+    };
+
+    struct GerstnerResult {
+        WaveVector3 position;
+        WaveVector3 normal;
     };
 
     class Simulator {
@@ -25,15 +43,9 @@ namespace WaveLogic {
         // Updates the phase of all waves based on deltaTime
         static void UpdateWaves(std::vector<WaveParameters>& waves, float deltaTime);
 
-        // The "Single Point Query" for C++ (Buoyancy/Physics)
-        static float GetHeightAt(float x, float z, const std::vector<WaveParameters>& waves);
-        
-        // Returns the offset vector (for Gerstner horizontal displacement)
-        static void GetDisplacement(float x, float z, const std::vector<WaveParameters>& waves, float& outX, float& outY, float& outZ);
+        static GerstnerResult EvaluateWaveAt(float x, float z, const std::vector<WaveParameters>& waves);
 
-        static WaveVector3 GetNormalAt(float x, float z, const std::vector<WaveParameters>& waves);
-
-        static std::vector<WaveParameters> GenerateSeaState(float windSpeed, float mainDirDegrees, float scale, int count, int seed);
+        static std::vector<WaveParameters> GenerateSea(const SeaParameters& seaParams);
     };
 
 };

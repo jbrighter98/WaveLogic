@@ -1,19 +1,30 @@
+#define _USE_MATH_DEFINES
+#define GLM_ENABLE_EXPERIMENTAL
+
 #include <glad/glad.h>  // GLAD must be included before GLFW
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <iostream>
+#include <vector>
+#include <cmath>
 
 #include <WaveLogic.h>
 
 #include "Shader.hpp"
+#include "CubeGen.hpp"
+
+
+
 
 std::string VERSION = "1.0.0";
 
 // Window dimensions
 int currentWidth = 800;
 int currentHeight = 600;
+
 
 // Callback for resizing the window
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -111,15 +122,29 @@ int main() {
     glEnableVertexAttribArray(0);
 
 
-
-
     Shader mainShader("shader.vs", "shader.fs");
+    Shader sphereShader("sphere.vs", "sphere.fs");
 
 
-    // --- Initialization (Outside the loop) ---
-    std::vector<WaveLogic::WaveParameters> activeWaves = WaveLogic::Simulator::GenerateSeaState(5.0f, 45.0f, 5.0f, 16, 123);
+    // --- Initialization ---
+
+    WaveLogic::SeaParameters params;
+    params.dominantDirection  = 0.0f;
+    params.directionalSpread  = 0.4f;
+    params.planeSize          = 20.0f;
+    params.amplitudeScale     = 0.5f;   // 50% of plane = max 10 units tall. Reduce if still spiky.
+    params.steepness          = 0.5f;   // 0 = sine waves, 1 = sharp Gerstner peaks
+    params.shortestWaveFrac   = 0.05f;  // shortest wave = 1 unit across
+    params.longestWaveFrac    = 0.35f;  // longest wave  = 11 units across
+    params.waveCount          = 16;
+    params.seed               = 42;
+
+    std::vector<WaveLogic::WaveParameters> activeWaves = WaveLogic::Simulator::GenerateSea(params);
 
     float lastFrame = 0.0f;
+
+    // Object for buoyancy demo
+    CubeObject buoyCube = createCubeObject(0.3f, 0.0f, 0.0f);
 
 
     // --- Render Loop ---
@@ -173,8 +198,8 @@ int main() {
 
         mainShader.setInt("numWaves", (int)activeWaves.size());
 
-        if (activeWaves.size() > 16) {
-            std::cout << "WARNING: Too many waves for shader capacity! Maximum is 16." << std::endl;
+        if (activeWaves.size() > 64) {
+            std::cout << "WARNING: Too many waves for shader capacity! Maximum is 64." << std::endl;
         }
 
         WaveLogic::Simulator::UpdateWaves(activeWaves, deltaTime);
@@ -195,14 +220,30 @@ int main() {
 
         glm::mat4 model = glm::mat4(1.0f);
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)currentWidth / (float)currentHeight, 0.1f, 100.0f);
+        glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
 
         mainShader.setMat4("model", model);        
         mainShader.setMat4("projection", projection);
+        mainShader.setMat3("normalMatrix", normalMatrix);
 
-
-        // DRAW
+        // DRAW mainShader PLANE
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, planeIndices.size(), GL_UNSIGNED_INT, 0);
+
+
+
+        // BUOYANCY DEMO
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        sphereShader.use();
+        glUniform3f(glGetUniformLocation(sphereShader.ID, "lightDir"),    0.0f, -1.0f, 0.5f);
+        glUniform3f(glGetUniformLocation(sphereShader.ID, "lightColor"),  1.0f,  1.0f, 1.0f);
+        glUniform3f(glGetUniformLocation(sphereShader.ID, "objectColor"), 0.8f,  0.3f, 0.2f);
+
+        updateAndDrawCube(buoyCube, activeWaves, sphereShader.ID, view, projection);
+
+
+
+        // SWAP BUFFERS AND POLL EVENTS
 
         glfwSwapBuffers(window);
         glfwPollEvents();

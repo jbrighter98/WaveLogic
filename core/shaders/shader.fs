@@ -31,5 +31,11 @@ void main() {
 
     vec3 result = (ambient + diffuse + specular) * waterColor;
 
-    FragColor = vec4(result, 1.0);
+    float foamLine = 1.2; // Adjust based on your wave scale
+    float foam = smoothstep(foamLine, foamLine + 0.5, FragPos.y);
+    
+    vec3 finalColor = mix(result, vec3(1.0, 1.0, 1.0), foam);
+    FragColor = vec4(finalColor, 1.0);
+
+    //FragColor = vec4(result, 1.0);
 }
